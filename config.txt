@@ -1,0 +1,67 @@
+## last edit: 3.3.2024.
+## cod version compatible: v.0.0.1
+------------------------------------------------------------------------------------------------------------------------
+## WARNING
+## adding new groups to config.txt causes changes in code!!
+## be careful in which order you place and program new groups
+------------------------------------------------------------------------------------------------------------------------
+
+## parameter has chance of being in choosing pool equal to number after 'by' in percentage
+## parameter can have rarity class in form of number from 0 to 100 which has no need to be specified
+## if parameter has no rarity, rarity 100% is automatically given to it
+## in database.txt parameter has its rarity writen in following form ( 'Parameter(S)' )
+## example: S_by_100
+
+__Rarity__
+S_by_100
+C_by_80
+U_by_50
+R_by_30
+M_by_10
+/end
+------------------------------------------------------------------------------------------------------------------------
+
+## optional group has chance of occurring equal to number after 'by' in percentage
+## Fear_by_80 has 80% chance of occurring in character
+## example: Fear_by_80
+
+__OptionalGroup__
+None
+/end
+------------------------------------------------------------------------------------------------------------------------
+
+## group can both be optional and multiple
+## multiple group has a chance of being multiplied equal to number after 'by' in percentage
+## multiple group will occur minimum of 'min' times and maximum of 'max' times
+## Race_by_20_min1max4 has 20% chance of occurring 2 times, 4% chance of occurring 3 times,
+## 0.8% chance of occurring 4 times
+## example: Race_by_20_min1max2
+
+__MultipleGroup__
+Race_by_20_min1max2
+Characteristics_by_50_min1max4
+/end
+------------------------------------------------------------------------------------------------------------------------
+
+## conditioned group will match with all and any of its conditions
+## Name_by_Sex_Race -> ( Name ; SexName ; RaceName ; SexRaceName )
+## if a character has 2 or more parameters in a influential group, all of them will be taken in account
+## if the same parameter is in 2 or more groups, rarity class of one that is in more specific group will be taken
+## if some parameter is in 2 or more groups that are equally specific, rarity class will be taken randomly from one of
+## those groups
+## conditioned group MUST be named in particular order: if you condition your group Name by group Sex then group Race,
+## your conditioned group must be named SexRaceName
+## in database Name_by_Sex_Race should look like: ( MaleHumanName / FemaleDwarfName / MaleName / ElfName ... )
+## conditioned groups can not be all conditioned by each other - no circular logic
+## if conditioned group is conditioned by another conditioned group, the one which is also influential must go above
+## EXAMPLES FOR THE ABOVE: NO ( Name_by_Sex_Race ; Race_by_Name ... ) OR ( Name_by_Sex_Race ; Race_by_Sex ... )
+## CAN DO ( Race_by_Sex ; Name_by_Sex_Race ... )
+## in database.txt keep original group in a spot in which you want it to print out, but put all of its conditioned
+## variants in (## ConditionedGroup) section of the database.txt
+## example: Name_by_Sex_Race
+
+__ConditionedGroup__
+Sex_by_Race
+Name_by_Sex_Race
+/end
+------------------------------------------------------------------------------------------------------------------------
