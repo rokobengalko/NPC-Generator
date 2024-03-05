@@ -303,12 +303,12 @@ class non_playable_character:
         # output [[group, '', ''], [group_2, '', '', ''], [group_3, ''], ... ]
 
         for tmp_parameter in self.loc_multiple_groups[0]:
-            # input Race_by_20_from1to2
+            # input Race_by_20_min1max2
 
             tmp_multiple_group = clean_special_groups(tmp_parameter)
-            # ['Race', '20', 'from1to2']
+            # ['Race', '20', 'min1max2']
             # get range in which can be amount of parameters in group
-            tmp_multiple_parameter_range = [int(n) for n in re.findall(r'\d', tmp_multiple_group[2])]
+            tmp_multiple_parameter_range = [int(n) for n in re.findall(r'\d+', tmp_multiple_group[2])]
 
             # count how many times will that parameter appear
             tmp_parameter_counter = tmp_multiple_parameter_range[0]
@@ -421,7 +421,7 @@ class non_playable_character:
             # for every element in sublist check for empty string, than replace it with random parameter
             for tmp_parameter in self.loc_groups_and_parameters_list[tmp_group_index]:
 
-                if tmp_parameter == '':
+                if tmp_parameter == '' and tmp_parameter_index <= tmp_num_of_active_parameters:
                     # ensures that no single parameter will occur more than once
                     tmp_parameter_chance = random.randint(0, tmp_num_of_active_parameters - 1)
                     while tmp_parameter_chance in tmp_all_random_chances:
@@ -433,6 +433,10 @@ class non_playable_character:
                         tmp_all_active_parameters[tmp_parameter_chance]
 
                 tmp_parameter_index += 1
+
+            self.loc_groups_and_parameters_list[tmp_group_index] = \
+                [ins_parameter for ins_parameter in self.loc_groups_and_parameters_list[tmp_group_index] if
+                 ins_parameter not in ['']]
 
     def __call__(self):
 
@@ -498,10 +502,10 @@ if __name__ == '__main__':
         Database = database.read()
     # _______________________________________
 
-    print('┌─┬┬─┬─┐┌──┐           ┌┐\n'
+    print('┌─┬┬─┬─┐┌──┐           ┌┐     \n'
           '││││┼│┌┘│┌─┼─┬─┬┬─┬┬┬─┐│└┬─┬┬┐\n'
           '││││┌┤└┐│└┐│┴┤│││┴┤┌┤┼└┤┌┤┼│┌┘\n'
-          '└┴─┴┘└─┘└──┴─┴┴─┴─┴┘└──┴─┴─┴┘\n')
+          '└┴─┴┘└─┘└──┴─┴┴─┴─┴┘└──┴─┴─┴┘ \n')
 
     NPC = non_playable_character()
     npc = None
