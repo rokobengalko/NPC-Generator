@@ -59,7 +59,7 @@ def extract_groups_from_database(database_str, delimiter='__'):
     tmp_pattern = re.compile(tmp_pattern_str)
     tmp_database = re.findall(tmp_pattern, database_str, flags=0)
 
-    out_groups = [ins_str.strip('_') for ins_str in tmp_database]
+    out_groups = [ins_str.strip(delimiter) for ins_str in tmp_database]
     out_groups_length = len(out_groups)
 
     return out_groups, out_groups_length
