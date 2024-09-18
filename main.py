@@ -181,7 +181,7 @@ def merge_rarity_lists(base_list, added_list):
     return tmp_new_list
 
 
-class non_playable_character:
+class NonPlayableCharacter:
 
     def __init__(self):
         # defining local variables
@@ -507,7 +507,7 @@ if __name__ == '__main__':
           '││││┌┤└┐│└┐│┴┤│││┴┤┌┤┼└┤┌┤┼│┌┘\n'
           '└┴─┴┘└─┘└──┴─┴┴─┴─┴┘└──┴─┴─┴┘ \n')
 
-    NPC = non_playable_character()
+    NPC = NonPlayableCharacter()
     npc = None
     control = input('n -\tgenerate new NPC\n'
                     's -\tsave NPC\n'
