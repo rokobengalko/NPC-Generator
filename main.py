@@ -215,6 +215,11 @@ class NPCGenerator:
 
         return self.groups_and_parameters
 
+    def list_nationalities(self) -> List[str]:
+        """List all possible nationalities from the database."""
+        nationalities = self._extract_list(self.database, 'Nationality')
+        return nationalities
+
 def print_npc(npc_data: List[List[str]], print_output: bool = False, save: bool = False):
     """Print or save NPC data."""
     output = '\n' + '\n'.join(f"{group[0]}:\t{', '.join(group[1:])}" for group in npc_data)
@@ -239,7 +244,7 @@ def main():
     npc_data = None
 
     while True:
-        control = input("n - generate new NPC\ns - save NPC\nN [nationality] - generate NPC with specific nationality\nhelp - commands\nesc - close program\n:")
+        control = input("n - generate new NPC\ns - save NPC\nN [nationality] - generate NPC with specific nationality\nl - list possible nationalities\nesc - close program\n:")
         if control == 'esc':
             break
         elif control == 'n':
@@ -252,15 +257,12 @@ def main():
         elif control == 's':
             if npc_data:
                 print_npc(npc_data, save=True)
-        elif control == 'help':
-            print("""
-n - generate new NPC
-s - save NPC
-N [nationality] - generate NPC with specific nationality
-help - commands
-esc - close program
-version: v.0.0.1
-            """)
+        elif control == 'l':
+            nationalities = npc_gen.list_nationalities()
+            print("\nAvailable Nationalities:")
+            for nat in nationalities:
+                print(f"- {nat}")
+            print('-' * 120 + '\n')
 
 if __name__ == "__main__":
     main()
