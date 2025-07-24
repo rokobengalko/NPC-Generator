@@ -495,7 +495,7 @@ def print_non_playable_character(npc_data, print1=False, save=False):
 if __name__ == '__main__':
 
     # _______________________________________
-   with open('./config.txt', encoding='utf-8') as config:
+    with open('./config.txt', encoding='utf-8') as config:
         Config = config.read()
 
     with open('./database.txt', encoding='utf-8') as database:
