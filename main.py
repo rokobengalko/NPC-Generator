@@ -139,7 +139,7 @@ class NPCGenerator:
             if idx is not None:
                 self.groups_and_parameters[idx] = [group_name] + [''] * count
 
-    def _process_conditioned_groups(self, list_groups: bool = False, select_params: bool = False):
+    def _process_conditioned_groups(self, list_groups: bool = False, select_params: bool = False, nationality: Optional[str] = None):
         """Handle conditioned groups by adjusting active groups and selecting parameters."""
         for group in self.conditioned_groups:
             parts = self._parse_special_group(group)
@@ -156,6 +156,8 @@ class NPCGenerator:
                     idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == cond), None)
                     if idx is not None:
                         condition_params.append(self.groups_and_parameters[idx][1:])
+                    elif cond == 'Nationality' and nationality:
+                        condition_params.append([nationality])
 
                 subgroups = self._generate_combinations(condition_params, main_group)
                 for subgroup in subgroups:
@@ -184,11 +186,19 @@ class NPCGenerator:
             
             self.groups_and_parameters[idx] = [p for p in self.groups_and_parameters[idx] if p]
 
-    def generate(self) -> List[List[str]]:
-        """Generate a new NPC."""
+    def generate(self, nationality: Optional[str] = None) -> List[List[str]]:
+        """Generate a new NPC, optionally with a specific nationality."""
         self.rarity_map = []
         self.active_groups = self.all_groups.copy()
         self.groups_and_parameters = [[group, ''] for group in self.all_groups]
+
+        # Ensure Nationality is included if specified
+        if nationality and 'Nationality' not in self.active_groups:
+            self.active_groups.append('Nationality')
+            self.groups_and_parameters.append(['Nationality', nationality])
+        elif nationality:
+            idx = next(i for i, g in enumerate(self.groups_and_parameters) if g[0] == 'Nationality')
+            self.groups_and_parameters[idx] = ['Nationality', nationality]
 
         self._process_rarity_classes()
         if self.optional_groups and self.optional_groups[0] != 'None':
@@ -196,12 +206,12 @@ class NPCGenerator:
         if self.multiple_groups and self.multiple_groups[0] != 'None':
             self._process_multiple_groups()
         if self.conditioned_groups and self.conditioned_groups[0] != 'None':
-            self._process_conditioned_groups(list_groups=True)
+            self._process_conditioned_groups(list_groups=True, nationality=nationality)
 
         self._select_parameters(self.active_groups)
         
         if self.conditioned_groups and self.conditioned_groups[0] != 'None':
-            self._process_conditioned_groups(select_params=True)
+            self._process_conditioned_groups(select_params=True, nationality=nationality)
 
         return self.groups_and_parameters
 
@@ -229,11 +239,15 @@ def main():
     npc_data = None
 
     while True:
-        control = input("n - generate new NPC\ns - save NPC\nhelp - commands\nesc - close program\n:")
+        control = input("n - generate new NPC\ns - save NPC\nN [nationality] - generate NPC with specific nationality\nhelp - commands\nesc - close program\n:")
         if control == 'esc':
             break
         elif control == 'n':
             npc_data = npc_gen.generate()
+            print_npc(npc_data, print_output=True)
+        elif control.startswith('N '):
+            nationality = control[2:].strip()
+            npc_data = npc_gen.generate(nationality=nationality)
             print_npc(npc_data, print_output=True)
         elif control == 's':
             if npc_data:
@@ -242,6 +256,7 @@ def main():
             print("""
 n - generate new NPC
 s - save NPC
+N [nationality] - generate NPC with specific nationality
 help - commands
 esc - close program
 version: v.0.0.1
