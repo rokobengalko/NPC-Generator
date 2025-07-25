@@ -51,44 +51,48 @@ class NPCGenerator:
     def _extract_groups(self, data: str = None, delimiter: str = None) -> List[str]:
         """Extract group names from the database folder or config string."""
         if data and delimiter:
-            # For config file, use regex to extract groups
             pattern = rf'({delimiter}\w+{delimiter})'
             groups = [g.strip(delimiter) for g in re.findall(pattern, data)]
             return groups
         else:
-            # For database, list .txt files in the database directory
             return [filename[:-4] for filename in os.listdir(self.database_dir) if filename.endswith('.txt')]
 
     def _extract_list(self, data: str, group_name: str, delimiter: str = None) -> List[str]:
         """Extract elements of a specific group from a data string or file."""
+        group_name = group_name.replace(' ', '_')
         if delimiter:
-            # For config file, use regex to extract list
             pattern = rf'{delimiter}{group_name}{delimiter}\n((?:.*?\n)*?)/end'
             match = re.search(pattern, data)
             if not match:
+                print(f"Warning: Group {group_name} not found in config.")
                 return ['None']
             items = match.group(1).strip().split('\n')
-            return [item for item in items if item.strip()]
+            if group_name in ['Personalities', 'Religion']:
+                return [item for item in items if item.strip()]  # No normalization for Personalities or Religion
+            return [item.replace(' ', '_') for item in items if item.strip()]
         else:
-            # For database, read from the group file or conditioned group file
             file_path = os.path.join(self.database_dir, f"{group_name}.txt")
             if os.path.exists(file_path):
                 with open(file_path, encoding='utf-8') as f:
                     items = f.read().strip().split('\n')
-                    return [item.strip() for item in items if item.strip()]
-            # Check for conditioned group in subfolder
+                    if group_name in ['Personalities', 'Religion']:
+                        return [item.strip() for item in items if item.strip()]  # No normalization for Personalities or Religion
+                    return [item.strip().replace(' ', '_') for item in items if item.strip()]
             for group in self.all_groups:
                 sub_path = os.path.join(self.database_dir, group, f"{group_name}.txt")
                 if os.path.exists(sub_path):
                     with open(sub_path, encoding='utf-8') as f:
                         items = f.read().strip().split('\n')
-                        return [item.strip() for item in items if item.strip()]
+                        if group_name in ['Personalities', 'Religion']:
+                            return [item.strip() for item in items if item.strip()]  # No normalization for Personalities or Religion
+                        return [item.strip().replace(' ', '_') for item in items if item.strip()]
+            print(f"Warning: No file found for group {group_name} in database.")
             return ['None']
 
     def _parse_special_group(self, group: str) -> List[str]:
         """Parse a special group string into its components."""
-        group = group.replace('_by_', ' ').replace('_', ' ')
-        return re.findall(r'\w+', group)
+        group = group.replace('_by_', '_').replace('__', '_')
+        return group.split('_')
 
     def _generate_combinations(self, params: List[List[str]], group_name: str) -> List[str]:
         """Generate all possible subgroup name combinations."""
@@ -97,7 +101,8 @@ class NPCGenerator:
             for indices in itertools.combinations(range(len(params)), r):
                 param_sets = [params[i] for i in indices]
                 for combo in itertools.product(*param_sets):
-                    combinations.append(''.join(combo) + group_name)
+                    normalized_combo = [param.replace(' ', '_') for param in combo]
+                    combinations.append('_'.join(normalized_combo) + group_name)
         return combinations
 
     def _merge_rarity_lists(self, base_list: List[str], added_list: List[str]) -> List[str]:
@@ -111,7 +116,7 @@ class NPCGenerator:
             result[base_item] = item if rarity else base_item
         return list(result.values())
 
-    def _apply_rarity(self, items: Union[List[str], str]) -> List[str]:
+    def _apply_rarity(self, items: Union[List[str], str], force_select: bool = False) -> List[str]:
         """Apply rarity classes to filter items based on their probability."""
         if isinstance(items, str):
             items = self._extract_list(None, items)
@@ -133,6 +138,9 @@ class NPCGenerator:
 
             if rarity_prob >= random.randint(1, 100):
                 filtered_items.append(re.sub(rarity_pattern, '', item))
+        
+        if not filtered_items and force_select and items and items != ['None']:
+            filtered_items = [re.sub(rarity_pattern, '', random.choice(items))]
         
         return filtered_items
 
@@ -172,6 +180,11 @@ class NPCGenerator:
 
     def _process_conditioned_groups(self, list_groups: bool = False, select_params: bool = False, nationality: Optional[str] = None):
         """Handle conditioned groups by adjusting active groups and selecting parameters."""
+        if nationality:
+            nationality = nationality.replace(' ', '_')
+            if nationality.startswith('Resident_of_'):
+                nationality = nationality[len('Resident_of_'):]
+        
         for group in self.conditioned_groups:
             parts = self._parse_special_group(group)
             main_group, conditions = parts[0], parts[1:]
@@ -181,50 +194,74 @@ class NPCGenerator:
                     self.active_groups.remove(main_group)
 
             if select_params:
-                params = self._extract_list(None, main_group)
                 condition_params = []
                 for cond in conditions:
                     idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == cond), None)
                     if idx is not None:
-                        condition_params.append(self.groups_and_parameters[idx][1:])
+                        condition_params.append([param.replace(' ', '_') for param in self.groups_and_parameters[idx][1:]])
                     elif cond == 'Nationality' and nationality:
-                        condition_params.append([nationality])
+                        condition_params.append([f"Resident_of_{nationality}"])
 
+                params = ['None']
                 subgroups = self._generate_combinations(condition_params, main_group)
                 for subgroup in subgroups:
                     try:
                         sub_params = self._extract_list(None, subgroup)
-                        params = self._merge_rarity_lists(params, sub_params)
+                        if main_group == 'Race' and nationality:
+                            expected_subgroup = f"Resident_of_{nationality}Race"
+                            if subgroup == expected_subgroup and sub_params != ['None']:
+                                params = sub_params
+                            else:
+                                pass
+                        else:
+                            params = self._merge_rarity_lists(params, sub_params)
                     except AttributeError:
-                        pass
-                
-                self._select_parameters([main_group], params)
+                        print(f"Warning: Subgroup {subgroup} not found in database.")
 
-    def _select_parameters(self, groups: List[str], params: Optional[List[str]] = None):
+                if params == ['None']:
+                    params = self._extract_list(None, main_group)
+
+                force_select = main_group in ['Race', 'Sex'] and (nationality or condition_params)
+                self._select_parameters([main_group], params, force_select=force_select)
+
+    def _select_parameters(self, groups: List[str], params: Optional[List[str]] = None, force_select: bool = False):
         """Select parameters for given groups."""
         for group in groups:
-            active_params = self._apply_rarity(params if params else group)
+            active_params = self._apply_rarity(params if params else group, force_select=force_select)
+            if not active_params and group in ['Race', 'Sex'] and force_select:
+                active_params = []
             idx = next(i for i, g in enumerate(self.groups_and_parameters) if g[0] == group)
             
             used_indices = []
             for i, param in enumerate(self.groups_and_parameters[idx][1:], start=1):
                 if param == '':
-                    choice_idx = random.randint(0, len(active_params) - 1)
-                    while choice_idx in used_indices:
+                    if active_params:
                         choice_idx = random.randint(0, len(active_params) - 1)
-                    used_indices.append(choice_idx)
-                    self.groups_and_parameters[idx][i] = active_params[choice_idx]
+                        while choice_idx in used_indices:
+                            choice_idx = random.randint(0, len(active_params) - 1)
+                        used_indices.append(choice_idx)
+                        self.groups_and_parameters[idx][i] = active_params[choice_idx]
             
             self.groups_and_parameters[idx] = [p for p in self.groups_and_parameters[idx] if p]
 
     def generate(self, nationality: Optional[str] = None) -> List[List[str]]:
         """Generate a new NPC, optionally with a specific nationality."""
+        if nationality:
+            nationality = nationality.replace(' ', '_')
+        else:
+            valid_nationalities = self._extract_list(None, 'Nationality')
+            if valid_nationalities and valid_nationalities != ['None']:
+                nationality = random.choice(valid_nationalities)
+        
         self.rarity_map = []
         self.active_groups = self.all_groups.copy()
         self.groups_and_parameters = [[group, ''] for group in self.all_groups]
 
-        # Ensure Nationality is included if specified
         if nationality and 'Nationality' not in self.active_groups:
+            valid_nationalities = self._extract_list(None, 'Nationality')
+            if nationality not in valid_nationalities:
+                print(f"Error: Nationality '{nationality}' not found in database. Use 'l' to list valid nationalities.")
+                return []
             self.active_groups.append('Nationality')
             self.groups_and_parameters.append(['Nationality', nationality])
         elif nationality:
@@ -253,8 +290,14 @@ class NPCGenerator:
 
 def print_npc(npc_data: List[List[str]], print_output: bool = False, save: bool = False):
     """Print or save NPC data."""
-    output = '\n' + '\n'.join(f"{group[0]}:\t{', '.join(group[1:])}" for group in npc_data)
-    output += '\n' + '-' * 120 + '\n'
+    output = []
+    for group in npc_data:
+        group_name = group[0]
+        params = group[1:]
+        if group_name == 'Nationality':
+            params = [param.replace('_', ' ') for param in params]
+        output.append(f"{group_name}:\t{', '.join(params)}")
+    output = '\n' + '\n'.join(output) + '\n' + '-' * 120 + '\n'
 
     if print_output:
         print(output)
@@ -282,7 +325,7 @@ def main():
             npc_data = npc_gen.generate()
             print_npc(npc_data, print_output=True)
         elif control.startswith('N '):
-            nationality = control[2:].strip()
+            nationality = control[2:].strip().replace(' ', '_')
             npc_data = npc_gen.generate(nationality=nationality)
             print_npc(npc_data, print_output=True)
         elif control == 's':
@@ -292,7 +335,7 @@ def main():
             nationalities = npc_gen.list_nationalities()
             print("\nAvailable Nationalities:")
             for nat in nationalities:
-                print(f"- {nat}")
+                print(f"- {nat.replace('_', ' ')}")
             print('-' * 120 + '\n')
 
 if __name__ == "__main__":
