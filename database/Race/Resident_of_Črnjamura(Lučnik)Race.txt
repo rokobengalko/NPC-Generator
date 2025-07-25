@@ -1,0 +1,7 @@
+Athamaru(S)
+Azarketi(S)
+Fetchling(S)
+Goblin(S)
+Hobgoblin(S)
+Human(S)
+Minotaur(S)
