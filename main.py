@@ -1,58 +1,89 @@
 #!/usr/bin/env python
 """
 NPC Generator
-Cod version: v.0.0.1
+Cod version: v.0.0.4
 ----------------------------------------
-Generates NPCs from a database stored in a text file.
+Generates NPCs from a database stored in individual files within a folder structure.
 ----------------------------------------
 First update: 2024-02-29
 First programmer: Martin Martinic
-Last update: 2024-03-03
-Last programmer: Martin Martinic
+Last update: 2024-07-24
+Last programmer: Bela
 """
 
 import random
 import re
 import itertools
+import os
 from typing import List, Tuple, Optional, Union
 
 class NPCGenerator:
     """Generates Non-Playable Characters (NPCs) based on configuration and database files."""
 
-    def __init__(self, config_file: str = "./config.txt", database_file: str = "./database.txt"):
-        """Initialize NPC generator with configuration and database files."""
+    def __init__(self, config_file: str = "./config.txt", database_dir: str = "./database"):
+        """Initialize NPC generator with configuration and database folder."""
+        self.database_dir = database_dir
         with open(config_file, encoding='utf-8') as f:
             self.config = f.read()
-        with open(database_file, encoding='utf-8') as f:
-            self.database = f.read()
 
-        self.all_groups = self._extract_groups(self.database)
-        self.special_groups = self._extract_groups(self.config)
+        # Load database files
+        self.database = {}
+        for filename in os.listdir(database_dir):
+            if filename.endswith('.txt'):
+                group_name = filename[:-4]  # Remove .txt extension
+                file_path = os.path.join(database_dir, filename)
+                with open(file_path, encoding='utf-8') as f:
+                    self.database[group_name] = f.read()
+
+        self.all_groups = self._extract_groups()
+        self.special_groups = self._extract_groups(self.config, '__')
 
         # Extract group configurations
-        self.rarity_classes = self._extract_list(self.config, self.special_groups[0])
-        self.optional_groups = self._extract_list(self.config, self.special_groups[1])
-        self.multiple_groups = self._extract_list(self.config, self.special_groups[2])
-        self.conditioned_groups = self._extract_list(self.config, self.special_groups[3])
+        self.rarity_classes = self._extract_list(self.config, self.special_groups[0], '__')
+        self.optional_groups = self._extract_list(self.config, self.special_groups[1], '__')
+        self.multiple_groups = self._extract_list(self.config, self.special_groups[2], '__')
+        self.conditioned_groups = self._extract_list(self.config, self.special_groups[3], '__')
 
         self.rarity_map = []
         self.active_groups = []
         self.groups_and_parameters = []
 
-    def _extract_groups(self, data: str, delimiter: str = '__') -> List[str]:
-        """Extract group names from a data string."""
-        pattern = rf'({delimiter}\w+{delimiter})'
-        groups = [g.strip(delimiter) for g in re.findall(pattern, data)]
-        return groups
+    def _extract_groups(self, data: str = None, delimiter: str = None) -> List[str]:
+        """Extract group names from the database folder or config string."""
+        if data and delimiter:
+            # For config file, use regex to extract groups
+            pattern = rf'({delimiter}\w+{delimiter})'
+            groups = [g.strip(delimiter) for g in re.findall(pattern, data)]
+            return groups
+        else:
+            # For database, list .txt files in the database directory
+            return [filename[:-4] for filename in os.listdir(self.database_dir) if filename.endswith('.txt')]
 
-    def _extract_list(self, data: str, group_name: str, delimiter: str = '__') -> List[str]:
-        """Extract elements of a specific group from a data string."""
-        pattern = rf'{delimiter}{group_name}{delimiter}\n((?:.*?\n)*?)/end'
-        match = re.search(pattern, data)
-        if not match:
+    def _extract_list(self, data: str, group_name: str, delimiter: str = None) -> List[str]:
+        """Extract elements of a specific group from a data string or file."""
+        if delimiter:
+            # For config file, use regex to extract list
+            pattern = rf'{delimiter}{group_name}{delimiter}\n((?:.*?\n)*?)/end'
+            match = re.search(pattern, data)
+            if not match:
+                return ['None']
+            items = match.group(1).strip().split('\n')
+            return [item for item in items if item.strip()]
+        else:
+            # For database, read from the group file or conditioned group file
+            file_path = os.path.join(self.database_dir, f"{group_name}.txt")
+            if os.path.exists(file_path):
+                with open(file_path, encoding='utf-8') as f:
+                    items = f.read().strip().split('\n')
+                    return [item.strip() for item in items if item.strip()]
+            # Check for conditioned group in subfolder
+            for group in self.all_groups:
+                sub_path = os.path.join(self.database_dir, group, f"{group_name}.txt")
+                if os.path.exists(sub_path):
+                    with open(sub_path, encoding='utf-8') as f:
+                        items = f.read().strip().split('\n')
+                        return [item.strip() for item in items if item.strip()]
             return ['None']
-        items = match.group(1).strip().split('\n')
-        return [item for item in items if item.strip()]
 
     def _parse_special_group(self, group: str) -> List[str]:
         """Parse a special group string into its components."""
@@ -83,7 +114,7 @@ class NPCGenerator:
     def _apply_rarity(self, items: Union[List[str], str]) -> List[str]:
         """Apply rarity classes to filter items based on their probability."""
         if isinstance(items, str):
-            items = self._extract_list(self.database, items)
+            items = self._extract_list(None, items)
         
         filtered_items = []
         rarity_pattern = re.compile(r'\(\w{1,3}\)$')
@@ -150,7 +181,7 @@ class NPCGenerator:
                     self.active_groups.remove(main_group)
 
             if select_params:
-                params = self._extract_list(self.database, main_group)
+                params = self._extract_list(None, main_group)
                 condition_params = []
                 for cond in conditions:
                     idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == cond), None)
@@ -162,7 +193,7 @@ class NPCGenerator:
                 subgroups = self._generate_combinations(condition_params, main_group)
                 for subgroup in subgroups:
                     try:
-                        sub_params = self._extract_list(self.database, subgroup, '==')
+                        sub_params = self._extract_list(None, subgroup)
                         params = self._merge_rarity_lists(params, sub_params)
                     except AttributeError:
                         pass
@@ -217,7 +248,7 @@ class NPCGenerator:
 
     def list_nationalities(self) -> List[str]:
         """List all possible nationalities from the database."""
-        nationalities = self._extract_list(self.database, 'Nationality')
+        nationalities = self._extract_list(None, 'Nationality')
         return nationalities
 
 def print_npc(npc_data: List[List[str]], print_output: bool = False, save: bool = False):

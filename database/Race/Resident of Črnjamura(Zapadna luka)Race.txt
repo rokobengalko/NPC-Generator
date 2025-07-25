@@ -1,0 +1,8 @@
+Athamaru(S)
+Azarketi(S)
+Goblin(S)
+Halfling(S)
+Human(S)
+Kitsune(S)
+Orc(S)
+Vishkanya(S)
