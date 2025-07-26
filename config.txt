@@ -1,5 +1,5 @@
 ## last edit: 20.7.2025.
-## cod version compatible: v.0.0.1
+## cod version compatible: v.0.0.5
 ------------------------------------------------------------------------------------------------------------------------
 ## WARNING
 ## adding new groups to config.txt causes changes in code!!
