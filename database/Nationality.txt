@@ -1,0 +1,36 @@
+Resident of Črnjamura(Zapadna luka)
+Resident of Črnjamura(Davorje)
+Resident of Črnjamura(Centar)
+Resident of Črnjamura(Murnjani)
+Resident of Črnjamura(Četvrt Duber)
+Resident of Črnjamura(Lučnik)
+Resident of Črnjamura(Delta)
+Resident of Črnjamura(Karasova Četvrt)
+Resident of Črnjamura(Jezerska Četvrt)
+Resident of Črnjamura(Izvorišće)
+Resident of Črnjamura(Istočna Luka)
+Resident of Črnjamura(Trokut)
+Resident of Črnjamura(Donji Cestari)
+Resident of Črnjamura(Gornji Cestari)
+Resident of Črnjamura(Četvrt Sijena)
+Resident of Črnjamura(Muro Grad)
+Resident of Črnjamura(Črnjani)
+Resident of Črnjamura(Črnjec Grad)
+Resident of Gates of Argonoth
+Resident of Čaršija
+Resident of Monte Karla
+Resident of Sabotage
+Resident of Blat
+Resident of Ćižići
+Resident of Šaš
+Resident of Duga Mura
+Resident of Fer(C)
+Resident of Kset(C)
+Resident of Pilboroport(R)
+Resident of Rivačeg(R)
+Resident of Cormathyr(R)
+Resident of Elysia(M)
+Resident of Gragala(M)
+Resident of Horugva(M)
+Resident of Tal' Dorei(M)
+Independent city resident(R)

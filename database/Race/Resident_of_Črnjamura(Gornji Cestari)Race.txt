@@ -1,0 +1,6 @@
+Centaur(S)
+Elf(S)
+Gnome(S)
+Halfling(S)
+Human(S)
+Vanara(S)

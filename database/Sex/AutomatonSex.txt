@@ -1,0 +1,4 @@
+Male(N)
+Female(N)
+Hermaphrodite(N)
+Asexual(S)
