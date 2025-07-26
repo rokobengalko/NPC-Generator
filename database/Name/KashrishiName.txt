@@ -1,0 +1,10 @@
+Climber
+Firehorn
+Guardian
+Healer
+Lantern
+Mother
+Scout
+Softhand
+Tempest
+Warrior
