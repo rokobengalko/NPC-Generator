@@ -1,5 +1,5 @@
-## last edit: 3.3.2024.
-## cod version compatible: v.0.0.1
+## last edit: 20.7.2025.
+## cod version compatible: v.0.0.5
 ------------------------------------------------------------------------------------------------------------------------
 ## WARNING
 ## adding new groups to config.txt causes changes in code!!
@@ -18,6 +18,7 @@ C_by_80
 U_by_50
 R_by_30
 M_by_10
+N_by_0
 /end
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -26,7 +27,7 @@ M_by_10
 ## example: Fear_by_80
 
 __OptionalGroup__
-None
+Religion_by_45
 /end
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -38,8 +39,10 @@ None
 ## example: Race_by_20_min1max2
 
 __MultipleGroup__
-Race_by_20_min1max2
-Characteristics_by_50_min1max4
+Personalities_by_55_min1max4
+Religion_by_5_min1Max10
+Name_by_7_min1max2
+Race_by_10_min1max2
 /end
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -61,6 +64,7 @@ Characteristics_by_50_min1max4
 ## example: Name_by_Sex_Race
 
 __ConditionedGroup__
+Race_by_Nationality
 Sex_by_Race
 Name_by_Sex_Race
 /end

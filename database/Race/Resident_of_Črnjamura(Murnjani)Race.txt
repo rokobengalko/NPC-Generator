@@ -1,0 +1,4 @@
+Awakened_Animal(S)
+Catfolk(S)
+Human(S)
+Vanara(S)

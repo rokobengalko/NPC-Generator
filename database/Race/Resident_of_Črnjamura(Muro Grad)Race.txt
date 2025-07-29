@@ -1,0 +1,8 @@
+Awakened Animal(S)
+Catfolk(S)
+Dwarf(S)
+Elf(S)
+Gnome(S)
+Halfling(S)
+Human(S)
+Kitsune(S)
