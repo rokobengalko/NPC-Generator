@@ -4,19 +4,19 @@ NPC Generator
 Cod version: v.0.0.8
 ----------------------------------------
 Generates NPCs from a database stored in individual files within a folder structure.
-Includes a Tkinter GUI with options to select parameters for all groups before generation.
+Includes a Tkinter GUI with options to select parameters for all groups except Name and Personalities.
 Streamlined Nationality handling to integrate with other parameters.
 ----------------------------------------
 First update: 2024-02-29
 First programmer: Martin Martinic
-Last update: 2025-07-30
+Last update: 2025-08-02
 Last programmer: Grok
 """
 
 import random
 import re
-import itertools
 import os
+import unicodedata
 from typing import List, Tuple, Optional, Union, Dict
 import tkinter as tk
 from tkinter import ttk, scrolledtext
@@ -31,10 +31,10 @@ class NPCGenerator:
         self._load_database()
         self.all_groups = self._extract_groups()
         self.special_groups = self._extract_groups(self.config, '__')
-        self.rarity_classes = self._extract_list(self.config, self.special_groups[0], '__')
-        self.optional_groups = self._extract_list(self.config, self.special_groups[1], '__')
-        self.multiple_groups = self._extract_list(self.config, self.special_groups[2], '__')
-        self.conditioned_groups = self._extract_list(self.config, self.special_groups[3], '__')
+        self.rarity_classes = self.extract_list(self.config, self.special_groups[0], '__')
+        self.optional_groups = self.extract_list(self.config, self.special_groups[1], '__')
+        self.multiple_groups = self.extract_list(self.config, self.special_groups[2], '__')
+        self.conditioned_groups = self.extract_list(self.config, self.special_groups[3], '__')
         self.rarity_map: List[Tuple[str, int]] = []
         self.active_groups: List[str] = []
         self.groups_and_parameters: List[List[str]] = []
@@ -67,49 +67,59 @@ class NPCGenerator:
             return [g.strip(delimiter) for g in re.findall(pattern, data)]
         return [filename[:-4] for filename in os.listdir(self.database_dir) if filename.endswith('.txt')]
 
-    def _extract_list(self, data: Optional[str], group_name: str, delimiter: Optional[str] = None) -> List[str]:
+    def extract_list(self, data: Optional[str], group_name: str, delimiter: Optional[str] = None) -> List[str]:
         """Extract elements of a specific group from data string or file."""
         group_name = group_name.replace(' ', '_')
         if delimiter:
             pattern = rf'{delimiter}{group_name}{delimiter}\n((?:.*?\n)*?)/end'
             match = re.search(pattern, data)
             if not match:
-                print(f"Warning: Group {group_name} not found in config.")
                 return ['None']
             items = match.group(1).strip().split('\n')
-            return [item.strip() for item in items if item.strip()] if group_name in ['Personalities', 'Religion'] else \
-                   [item.strip().replace(' ', '_') for item in items if item.strip()]
+            items = [unicodedata.normalize('NFC', item.strip()) for item in items if item.strip()]
+            return items if group_name in ['Personalities', 'Religion'] else \
+                   [item.replace(' ', '_') for item in items]
+        
+        subfolder_map = {
+            'Name': 'Name',
+            'Race': 'Race',
+            'Sex': 'Sex'
+        }
+        
+        subfolder = None
+        for key in subfolder_map:
+            if group_name.endswith(key):
+                subfolder = subfolder_map[key]
+                break
+        
+        if subfolder:
+            file_path = os.path.join(self.database_dir, subfolder, f"{group_name}.txt")
+            if os.path.exists(file_path):
+                with open(file_path, encoding='utf-8') as f:
+                    items = f.read().strip().split('\n')
+                    items = [unicodedata.normalize('NFC', item.strip()) for item in items if item.strip()]
+                    return items if group_name in ['Personalities', 'Religion'] else items
         
         file_path = os.path.join(self.database_dir, f"{group_name}.txt")
         if os.path.exists(file_path):
             with open(file_path, encoding='utf-8') as f:
                 items = f.read().strip().split('\n')
-                return [item.strip() for item in items if item.strip()] if group_name in ['Personalities', 'Religion'] else \
-                       [item.strip() for item in items if item.strip()]
+                items = [unicodedata.normalize('NFC', item.strip()) for item in items if item.strip()]
+                return items if group_name in ['Personalities', 'Religion'] else items
         
         for group in self.all_groups:
             sub_path = os.path.join(self.database_dir, group, f"{group_name}.txt")
             if os.path.exists(sub_path):
                 with open(sub_path, encoding='utf-8') as f:
                     items = f.read().strip().split('\n')
-                    return [item.strip() for item in items if item.strip()] if group_name in ['Personalities', 'Religion'] else \
-                           [item.strip() for item in items if item.strip()]
+                    items = [unicodedata.normalize('NFC', item.strip()) for item in items if item.strip()]
+                    return items if group_name in ['Personalities', 'Religion'] else items
+        
         return ['None']
 
     def _parse_special_group(self, group: str) -> List[str]:
         """Parse a special group string into its components."""
         return group.replace('_by_', '_').replace('__', '_').split('_')
-
-    def _generate_combinations(self, params: List[List[str]], group_name: str) -> List[str]:
-        """Generate all possible subgroup name combinations."""
-        combinations = []
-        for r in range(len(params), 0, -1):
-            for indices in itertools.combinations(range(len(params)), r):
-                param_sets = [params[i] for i in indices]
-                for combo in itertools.product(*param_sets):
-                    normalized_combo = [param.replace(' ', '_') for param in combo]
-                    combinations.append('_'.join(normalized_combo) + group_name)
-        return combinations
 
     def _merge_rarity_lists(self, base_list: List[str], added_list: List[str]) -> List[str]:
         """Merge two lists, prioritizing rarity from added_list."""
@@ -125,7 +135,7 @@ class NPCGenerator:
     def _apply_rarity(self, items: Union[List[str], str], force_select: bool = False) -> List[str]:
         """Apply rarity classes to filter items based on probability."""
         if isinstance(items, str):
-            items = self._extract_list(None, items)
+            items = self.extract_list(None, items)
         
         filtered_items = []
         rarity_pattern = re.compile(r'\(\w{1,3}\)$')
@@ -155,16 +165,20 @@ class NPCGenerator:
             except (IndexError, ValueError):
                 pass
 
-    def _process_optional_groups(self) -> None:
-        """Remove optional groups based on probability."""
+    def _process_optional_groups(self, locked_groups: set) -> None:
+        """Remove optional groups based on probability, respecting locked groups."""
         for group in self.optional_groups:
             parts = self._parse_special_group(group)
+            group_name = parts[0]
+            if group_name in locked_groups:
+                continue
             if int(parts[1]) <= random.randint(1, 100):
-                self.active_groups.remove(parts[0])
-                self.groups_and_parameters = [g for g in self.groups_and_parameters if g[0] != parts[0]]
+                if group_name in self.active_groups:
+                    self.active_groups.remove(group_name)
+                self.groups_and_parameters = [g for g in self.groups_and_parameters if g[0] != group_name]
 
-    def _process_multiple_groups(self) -> None:
-        """Handle groups that can have multiple parameters."""
+    def _process_multiple_groups(self, locked_groups: set) -> None:
+        """Handle groups that can have multiple parameters, preserving locked parameters."""
         for group in self.multiple_groups:
             parts = self._parse_special_group(group)
             group_name, chance, minmax = parts[0], int(parts[1]), parts[2]
@@ -177,18 +191,25 @@ class NPCGenerator:
             
             idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == group_name), None)
             if idx is not None:
-                self.groups_and_parameters[idx] = [group_name] + [''] * count
+                current_params = self.groups_and_parameters[idx][1:]
+                if group_name in locked_groups and current_params and current_params[0] != '':
+                    self.groups_and_parameters[idx] = [group_name, current_params[0]] + [''] * (count - 1)
+                else:
+                    self.groups_and_parameters[idx] = [group_name] + [''] * count
 
-    def _process_conditioned_groups(self, list_groups: bool = False, select_params: bool = False, selected_params: Optional[Dict[str, str]] = None) -> None:
+    def _process_conditioned_groups(self, select_params: bool = False, selected_params: Optional[Dict[str, str]] = None) -> None:
         """Handle conditioned groups by adjusting active groups and selecting parameters."""
         for group in self.conditioned_groups:
             parts = self._parse_special_group(group)
-            main_group, conditions = parts[0], parts[1:]
-
-            if list_groups and main_group in self.active_groups:
-                self.active_groups.remove(main_group)
+            main_group = parts[0]
+            conditions = parts[1:]
 
             if select_params:
+                if selected_params and main_group in selected_params and selected_params[main_group] != 'Any':
+                    idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == main_group), None)
+                    if idx is not None and self.groups_and_parameters[idx][1] != '':
+                        continue
+
                 condition_params = []
                 for cond in conditions:
                     idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == cond), None)
@@ -204,7 +225,7 @@ class NPCGenerator:
                             for race in condition_params[1]:
                                 subgroup = f"{sex}_{race}_Name"
                                 try:
-                                    sub_params = self._extract_list(None, subgroup)
+                                    sub_params = self.extract_list(None, subgroup)
                                     if sub_params != ['None']:
                                         params = self._merge_rarity_lists(params, sub_params)
                                         if params != ['None']:
@@ -218,39 +239,39 @@ class NPCGenerator:
                         combined_params = ['None']
                         for sex in condition_params[0]:
                             sex_subgroup = f"{sex}Name"
-                            sex_names = self._extract_list(None, sex_subgroup)
+                            sex_names = self.extract_list(None, sex_subgroup)
                             if sex_names != ['None']:
                                 combined_params = self._merge_rarity_lists(combined_params, sex_names)
                         for race in condition_params[1]:
                             race_subgroup = f"{race}Name"
-                            race_names = self._extract_list(None, race_subgroup)
+                            race_names = self.extract_list(None, race_subgroup)
                             if race_names != ['None']:
                                 combined_params = self._merge_rarity_lists(combined_params, race_names)
                         if combined_params != ['None']:
                             params = combined_params
 
                     if params == ['None']:
-                        params = self._extract_list(None, main_group)
+                        params = self.extract_list(None, main_group)
 
+                elif main_group == 'Race' and selected_params and 'Nationality' in selected_params and selected_params['Nationality'] != 'Any':
+                    nationality = selected_params['Nationality']
+                    if nationality.startswith('Resident of '):
+                        nationality = nationality[len('Resident of '):]
+                    nationality = nationality.replace(' ', '_')
+                    expected_subgroup = f"Resident_of_{nationality}Race"
+                    race_file = os.path.join(self.database_dir, 'Race', f"{expected_subgroup}.txt")
+                    
+                    if os.path.exists(race_file):
+                        params = self.extract_list(None, expected_subgroup)
+                        if selected_params.get('Race', 'Any') != 'Any':
+                            selected_race = re.sub(r'\(\w{1,3}\)$', '', selected_params['Race']).strip()
+                            valid_races = [re.sub(r'\(\w{1,3}\)$', '', p).strip() for p in params]
+                            if selected_race not in valid_races:
+                                params = ['None']
+                    else:
+                        params = ['None']
                 else:
-                    subgroups = self._generate_combinations(condition_params, main_group)
-                    for subgroup in subgroups:
-                        try:
-                            sub_params = self._extract_list(None, subgroup)
-                            if main_group == 'Race' and selected_params and 'Nationality' in selected_params and selected_params['Nationality'] != 'Any':
-                                nationality = selected_params['Nationality'].replace(' ', '_')
-                                if nationality.startswith('Resident_of_'):
-                                    nationality = nationality[len('Resident_of_'):]
-                                expected_subgroup = f"Resident_of_{nationality}Race"
-                                if subgroup == expected_subgroup and sub_params != ['None']:
-                                    params = sub_params
-                            else:
-                                params = self._merge_rarity_lists(params, sub_params)
-                        except AttributeError:
-                            print(f"Warning: Subgroup {subgroup} not found in database.")
-
-                    if params == ['None']:
-                        params = self._extract_list(None, main_group)
+                    params = self.extract_list(None, main_group)
 
                 force_select = main_group in ['Race', 'Sex'] and (selected_params or condition_params)
                 self._select_parameters([main_group], params, force_select=force_select)
@@ -262,8 +283,9 @@ class NPCGenerator:
             idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == group), None)
             
             if idx is not None:
+                current_params = self.groups_and_parameters[idx][1:]
                 used_indices = []
-                for i, param in enumerate(self.groups_and_parameters[idx][1:], start=1):
+                for i, param in enumerate(current_params, start=1):
                     if param == '' and active_params:
                         choice_idx = random.randint(0, len(active_params) - 1)
                         while choice_idx in used_indices and len(used_indices) < len(active_params):
@@ -281,22 +303,31 @@ class NPCGenerator:
         self.active_groups = self.all_groups.copy()
         self.groups_and_parameters = [[group, ''] for group in self.all_groups]
 
-        # Handle all parameters, including Nationality
+        locked_groups = set()
+
         for group, param in selected_params.items():
+            param = unicodedata.normalize('NFC', param)
             if param == 'Any':
-                # For 'Any', randomly select a parameter
-                valid_params = self._extract_list(None, group)
+                valid_params = self.extract_list(None, group)
+                valid_params = [unicodedata.normalize('NFC', p) for p in valid_params]
                 if valid_params and valid_params != ['None']:
                     param = random.choice(valid_params)
                 else:
                     continue
-            param_clean = param.replace(' ', '_')
+            param_for_validation = param
+            param_clean = param.replace(' ', '_') if group not in ['Nationality', 'Religion'] else param
             if group == 'Nationality' and param != 'None':
-                if not param_clean.startswith('Resident_of_'):
-                    param_clean = f"Resident_of_{param_clean}"
-            valid_params = self._extract_list(None, group)
-            if param_clean not in valid_params and param != 'None':
-                print(f"Error: Parameter '{param}' not found for group '{group}'.")
+                if not param.startswith('Resident of '):
+                    param_clean = f"Resident of {param_clean}"
+            valid_params = self.extract_list(None, group)
+            valid_params = [unicodedata.normalize('NFC', p) for p in valid_params]
+            if group not in ['Nationality', 'Religion']:
+                valid_params_clean = valid_params
+            else:
+                valid_params_clean = [p.replace('_', ' ') for p in valid_params]
+            param_for_validation = re.sub(r'\(\w{1,3}\)$', '', param_for_validation).strip()
+            valid_params_clean = [re.sub(r'\(\w{1,3}\)$', '', p).strip() for p in valid_params_clean]
+            if param_for_validation not in valid_params_clean and param != 'None':
                 return []
             idx = next((i for i, g in enumerate(self.groups_and_parameters) if g[0] == group), None)
             if idx is None:
@@ -304,10 +335,28 @@ class NPCGenerator:
                 self.groups_and_parameters.append([group, param_clean])
             else:
                 self.groups_and_parameters[idx] = [group, param_clean]
+            if param != 'Any' and param != 'None':
+                locked_groups.add(group)
 
-        # Ensure Nationality is set if not provided
-        if not any(g[0] == 'Nationality' and len(g) > 1 and g[1] != '' for g in self.groups_and_parameters):
-            valid_nationalities = self._extract_list(None, 'Nationality')
+        # Validate and set race based on nationality if both are specified
+        if 'Nationality' in selected_params and selected_params['Nationality'] != 'Any' and 'Race' in selected_params and selected_params['Race'] != 'Any':
+            nationality = selected_params['Nationality']
+            if nationality.startswith('Resident of '):
+                nationality = nationality[len('Resident of '):]
+            nationality = nationality.replace(' ', '_')
+            race_file = os.path.join(self.database_dir, 'Race', f"Resident_of_{nationality}Race.txt")
+            if os.path.exists(race_file):
+                with open(race_file, encoding='utf-8') as f:
+                    valid_races = [unicodedata.normalize('NFC', re.sub(r'\(\w{1,3}\)$', '', race).strip()) for race in f.read().strip().split('\n')]
+                selected_race = re.sub(r'\(\w{1,3}\)$', '', selected_params['Race']).strip()
+                if selected_race not in valid_races:
+                    return []  # Invalid race for the selected nationality
+            else:
+                return []  # No race file for the selected nationality
+
+        if 'Nationality' not in locked_groups and not any(g[0] == 'Nationality' and len(g) > 1 and g[1] != '' for g in self.groups_and_parameters):
+            valid_nationalities = self.extract_list(None, 'Nationality')
+            valid_nationalities = [unicodedata.normalize('NFC', p) for p in valid_nationalities]
             if valid_nationalities and valid_nationalities != ['None']:
                 nationality = random.choice(valid_nationalities)
                 if 'Nationality' not in self.active_groups:
@@ -319,27 +368,22 @@ class NPCGenerator:
 
         self._process_rarity_classes()
         if self.optional_groups and self.optional_groups[0] != 'None':
-            self._process_optional_groups()
+            self._process_optional_groups(locked_groups)
         if self.multiple_groups and self.multiple_groups[0] != 'None':
-            self._process_multiple_groups()
-        if self.conditioned_groups and self.conditioned_groups[0] != 'None':
-            self._process_conditioned_groups(list_groups=True, selected_params=selected_params)
-
-        # Select parameters only for groups not already set by user
-        groups_to_select = [g for g in self.active_groups if not any(g == p[0] and len(p) > 1 and p[1] != '' for p in self.groups_and_parameters)]
-        self._select_parameters(groups_to_select)
-        
+            self._process_multiple_groups(locked_groups)
         if self.conditioned_groups and self.conditioned_groups[0] != 'None':
             self._process_conditioned_groups(select_params=True, selected_params=selected_params)
 
+        groups_to_select = [g for g in self.active_groups if not any(g == p[0] and len(p) > 1 and p[1] != '' and p[0] in locked_groups for p in self.groups_and_parameters)]
+        self._select_parameters(groups_to_select)
+        
         return self.groups_and_parameters
 
     def list_nationalities(self) -> List[str]:
         """List all possible nationalities from the database."""
-        return self._extract_list(None, 'Nationality')
+        return self.extract_list(None, 'Nationality')
 
 def print_npc(npc_data: List[List[str]], print_output: bool = False, save: bool = False) -> str:
-    """Format NPC data as a string with aligned formatting, optionally print or save."""
     if not npc_data:
         output_str = "No NPC data generated. Check parameter validity.\n" + '-' * 120 + '\n'
     else:
@@ -348,8 +392,8 @@ def print_npc(npc_data: List[List[str]], print_output: bool = False, save: bool 
         for group in npc_data:
             group_name = group[0]
             params = group[1:]
-            if group_name == 'Nationality':
-                params = [param.replace('_', ' ') for param in params]
+            # Strip rarity suffixes for all groups
+            params = [re.sub(r'\(\w{1,3}\)$', '', param).replace('_', ' ').strip() for param in params]
             formatted_params = ', '.join(params)
             output.append(f"{group_name:<{max_group_length}} : {formatted_params}")
         output_str = '\n' + '\n'.join(output) + '\n' + '-' * 120 + '\n'
@@ -362,6 +406,92 @@ def print_npc(npc_data: List[List[str]], print_output: bool = False, save: bool 
     
     return output_str
 
+def update_race_dropdown(npc_gen: NPCGenerator, group_vars: Dict[str, tk.StringVar], dropdowns: Dict[str, ttk.Combobox], *args) -> None:  # pylint: disable=unused-argument
+    """Update the Race dropdown based on the selected Nationality."""
+    nationality = group_vars['Nationality'].get()
+    if not nationality or nationality == 'Any':
+        params = npc_gen.extract_list(None, 'Race')
+        params = [re.sub(r'\(\w{1,3}\)$', '', p).strip() for p in params]
+        dropdowns['Race']['values'] = ['Any'] + params
+        dropdowns['Race'].set('Any')
+        return
+
+    nationality_clean = unicodedata.normalize('NFC', nationality)
+    if nationality_clean.startswith('Resident of '):
+        nationality_clean = nationality_clean[len('Resident of '):]
+    nationality_clean = nationality_clean.replace(' ', '_')
+    race_file = os.path.join(npc_gen.database_dir, 'Race', f"Resident_of_{nationality_clean}Race.txt")
+    
+    try:
+        if os.path.exists(race_file):
+            with open(race_file, encoding='utf-8') as f:
+                races = f.read().strip().split('\n')
+                races = [unicodedata.normalize('NFC', re.sub(r'\(\w{1,3}\)$', '', race).strip()) for race in races if race.strip()]
+        else:
+            races = npc_gen.extract_list(None, 'Race')
+            races = [re.sub(r'\(\w{1,3}\)$', '', race).strip() for race in races]
+        
+        dropdowns['Race']['values'] = ['Any'] + sorted(races)
+        if dropdowns['Race'].get() not in ['Any'] + races:
+            dropdowns['Race'].set('Any')
+    except (FileNotFoundError, IOError):
+        races = npc_gen.extract_list(None, 'Race')
+        races = [re.sub(r'\(\w{1,3}\)$', '', race).strip() for race in races]
+        dropdowns['Race']['values'] = ['Any'] + sorted(races)
+        dropdowns['Race'].set('Any')
+
+def generate_with_params(npc_gen: NPCGenerator, group_vars: Dict[str, tk.StringVar], dropdowns: Dict[str, ttk.Combobox], output_text: scrolledtext.ScrolledText, npc_data: List[List[List[str]]]) -> None:
+    """Generate an NPC with selected parameters and display it."""
+    selected_params = {group: var.get() for group, var in group_vars.items()}
+    if selected_params.get('Nationality', 'Any') != 'Any' and selected_params.get('Race', 'Any') != 'Any':
+        nationality = selected_params['Nationality']
+        if nationality.startswith('Resident of '):
+            nationality = nationality[len('Resident of '):]
+        nationality = nationality.replace(' ', '_')
+        race_file = os.path.join(npc_gen.database_dir, 'Race', f"Resident_of_{nationality}Race.txt")
+        if os.path.exists(race_file):
+            with open(race_file, encoding='utf-8') as f:
+                valid_races = [unicodedata.normalize('NFC', re.sub(r'\(\w{1,3}\)$', '', race).strip()) for race in f.read().strip().split('\n')]
+            selected_race = re.sub(r'\(\w{1,3}\)$', '', selected_params['Race']).strip()
+            if selected_race not in valid_races:
+                output_text.delete(1.0, tk.END)
+                output_text.insert(tk.END, f"Error: Race '{selected_race}' not valid for Nationality '{selected_params['Nationality']}'.\n" + '-' * 120 + '\n')
+                return
+        else:
+            output_text.delete(1.0, tk.END)
+            output_text.insert(tk.END, f"Error: No race data found for Nationality '{selected_params['Nationality']}'.\n" + '-' * 120 + '\n')
+            return
+    if selected_params.get('Religion', 'Any') != 'Any':
+        valid_religions = npc_gen.extract_list(None, 'Religion')
+        valid_religions = [unicodedata.normalize('NFC', re.sub(r'\(\w{1,3}\)$', '', religion).strip()) for religion in valid_religions]
+        selected_religion = re.sub(r'\(\w{1,3}\)$', '', selected_params['Religion']).strip()
+        if selected_religion not in valid_religions:
+            output_text.delete(1.0, tk.END)
+            output_text.insert(tk.END, f"Error: Religion '{selected_religion}' not found in database.\n" + '-' * 120 + '\n')
+            return
+    npc_data[0] = npc_gen.generate(selected_params)
+    output_text.delete(1.0, tk.END)
+    output_text.insert(tk.END, print_npc(npc_data[0], print_output=False))
+
+def list_nationalities(npc_gen: NPCGenerator, output_text: scrolledtext.ScrolledText) -> None:
+    """Display all available nationalities in the output text area."""
+    output_text.delete(1.0, tk.END)
+    output_text.insert(tk.END, "\nAvailable Nationalities:\n")
+    nationalities = npc_gen.list_nationalities()
+    for nat in nationalities:
+        output_text.insert(tk.END, f"- {nat.replace('_', ' ')}\n")
+    output_text.insert(tk.END, '-' * 120 + '\n')
+
+def save_npc(npc_data: List[List[List[str]]], output_text: scrolledtext.ScrolledText) -> None:
+    """Save the current NPC data to a file and confirm in the output text area."""
+    if npc_data[0]:
+        print_npc(npc_data[0], save=True)
+        output_text.delete(1.0, tk.END)
+        output_text.insert(tk.END, "NPC data saved to save.txt\n" + '-' * 120 + '\n')
+    else:
+        output_text.delete(1.0, tk.END)
+        output_text.insert(tk.END, "No NPC data to save. Generate an NPC first.\n" + '-' * 120 + '\n')
+
 def main():
     """Run the NPC generator with a Tkinter GUI."""
     root = tk.Tk()
@@ -369,73 +499,59 @@ def main():
     root.geometry("800x600")
 
     npc_gen = NPCGenerator()
-    npc_data = None
+    npc_data: List[List[List[str]]] = [[]]
 
-    # Frame for controls
     control_frame = ttk.Frame(root, padding="10")
     control_frame.pack(fill=tk.X)
 
-    # Text area for output
     output_text = scrolledtext.ScrolledText(root, width=90, height=20, wrap=tk.WORD, font=("Courier", 10))
     output_text.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-    # Dropdowns for each group
     group_vars = {}
     dropdowns = {}
-    for i, group in enumerate(npc_gen.all_groups):
+    excluded_groups = ['Name', 'Personalities']
+    display_groups = [g for g in npc_gen.all_groups if g not in excluded_groups and g != 'Years']
+    
+    # Place all dropdowns except Years in a two-column grid
+    for i, group in enumerate(display_groups):
         label = ttk.Label(control_frame, text=f"{group}:")
         label.grid(row=i//2, column=(i%2)*2, padx=5, pady=2, sticky=tk.E)
-        params = npc_gen._extract_list(None, group)
-        params = [p.replace('_', ' ') for p in params] if group in ['Nationality', 'Personalities', 'Religion'] else params
-        params = ['Any'] + params
+        params = npc_gen.extract_list(None, group)
+        params = [unicodedata.normalize('NFC', re.sub(r'\(\w{1,3}\)$', '', p).strip()) for p in params]
+        if group in ['Nationality', 'Religion']:
+            params = [p.replace('_', ' ') for p in params]
+        params = ['Any'] + sorted(params)
         var = tk.StringVar(root)
         var.set('Any')
         group_vars[group] = var
         dropdown = ttk.Combobox(control_frame, textvariable=var, values=params, state="readonly", width=30)
         dropdown.grid(row=i//2, column=(i%2)*2+1, padx=5, pady=2, sticky=tk.W)
         dropdowns[group] = dropdown
+        if group == 'Nationality':
+            var.trace('w', lambda *args: update_race_dropdown(npc_gen, group_vars, dropdowns, *args))
 
-    # Button frame
+    # Place Years dropdown in a new row to the right
+    if 'Years' in npc_gen.all_groups:
+        years_row = (len(display_groups) + 1) // 2
+        label = ttk.Label(control_frame, text="Years:")
+        label.grid(row=years_row, column=0, padx=5, pady=2, sticky=tk.E)
+        params = npc_gen.extract_list(None, 'Years')
+        params = [unicodedata.normalize('NFC', re.sub(r'\(\w{1,3}\)$', '', p).strip()) for p in params]
+        params = ['Any'] + sorted(params)
+        var = tk.StringVar(root)
+        var.set('Any')
+        group_vars['Years'] = var
+        dropdown = ttk.Combobox(control_frame, textvariable=var, values=params, state="readonly", width=30)
+        dropdown.grid(row=years_row, column=1, padx=5, pady=2, sticky=tk.W)
+        dropdowns['Years'] = dropdown
+
     button_frame = ttk.Frame(control_frame)
-    button_frame.grid(row=len(npc_gen.all_groups)//2, column=0, columnspan=4, pady=10)
+    button_frame.grid(row=(len(display_groups) + 3) // 2, column=0, columnspan=4, pady=10)
 
-    def generate_npc():
-        nonlocal npc_data
-        npc_data = npc_gen.generate()
-        output_text.delete(1.0, tk.END)
-        output_text.insert(tk.END, print_npc(npc_data, print_output=False))
-
-    def generate_with_params():
-        nonlocal npc_data
-        selected_params = {group: var.get() for group, var in group_vars.items()}
-        npc_data = npc_gen.generate(selected_params)
-        output_text.delete(1.0, tk.END)
-        output_text.insert(tk.END, print_npc(npc_data, print_output=False))
-
-    def list_nationalities():
-        output_text.delete(1.0, tk.END)
-        output_text.insert(tk.END, "\nAvailable Nationalities:\n")
-        nationalities = npc_gen.list_nationalities()
-        for nat in nationalities:
-            output_text.insert(tk.END, f"- {nat.replace('_', ' ')}\n")
-        output_text.insert(tk.END, '-' * 120 + '\n')
-
-    def save_npc():
-        nonlocal npc_data
-        if npc_data:
-            print_npc(npc_data, save=True)
-            output_text.delete(1.0, tk.END)
-            output_text.insert(tk.END, "NPC data saved to save.txt\n" + '-' * 120 + '\n')
-        else:
-            output_text.delete(1.0, tk.END)
-            output_text.insert(tk.END, "No NPC data to save. Generate an NPC first.\n" + '-' * 120 + '\n')
-
-    # Buttons
-    ttk.Button(button_frame, text="Generate with Parameters", command=generate_with_params).grid(row=0, column=0, padx=5, pady=5)
-    ttk.Button(button_frame, text="List Nationalities", command=list_nationalities).grid(row=0, column=1, padx=5, pady=5)
-    ttk.Button(button_frame, text="Save NPC", command=save_npc).grid(row=0, column=2, padx=5, pady=5)
+    ttk.Button(button_frame, text="Generate", command=lambda: generate_with_params(npc_gen, group_vars, dropdowns, output_text, npc_data)).grid(row=0, column=0, padx=5, pady=5)
+    ttk.Button(button_frame, text="List Nationalities", command=lambda: list_nationalities(npc_gen, output_text)).grid(row=0, column=1, padx=5, pady=5)
+    ttk.Button(button_frame, text="Save NPC", command=lambda: save_npc(npc_data, output_text)).grid(row=0, column=2, padx=5, pady=5)
     ttk.Button(button_frame, text="Exit", command=root.quit).grid(row=0, column=3, padx=5, pady=5)
-    ttk.Button(button_frame, text="Generate NPC", command=generate_npc).grid(row=0, column=4, padx=5, pady=5)
 
     root.mainloop()
 
