@@ -10,7 +10,7 @@ Streamlined Nationality handling to integrate with other parameters.
 First update: 2024-02-29
 First programmer: Martin Martinic
 Last update: 2025-08-03
-Last programmer: Grok
+Last programmer: Roko
 """
 
 import os
